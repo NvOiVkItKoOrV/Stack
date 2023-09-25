@@ -1,35 +1,35 @@
 #ifndef STACK_H
 #define STACK_H
 
-#include "config.h"
+typedef int elem_t;
+typedef unsigned long long canary_t;
 
+#define CANARY_PROTECTION 1
+#define HASH_PROTECTION 1
 
-static int error_code = NO_ERR;
-
-const int DEFAULT_STACK_CAPACITY = 10;
-const int ZERO_VAL = 0;
-const int ERR_VAL = -1;
-
+const canary_t LEFT_CANARY_VALUE = 0xBADDED;
+const canary_t RIGHT_CANARY_VALUE = 0xBE3BAB;
 
 struct stack_t
 {
-    elem_t* data;
-    int size;
-    int capacity;
+    #if CANARY_PROTECTION == 1
+        canary_t l_canary = LEFT_CANARY_VALUE;
+    #endif
+
+    char* data; // elem_t* -> char*
+    long unsigned int size; // int -> some unsigned type
+    long unsigned int capacity; // int -> some usigned type
+
+    #if CANARY_PROTECTION == 1
+        canary_t r_canary = RIGHT_CANARY_VALUE;
+    #endif
+
 };
 
 void stack_ctor(struct stack_t* stk);
 void stack_dtor(struct stack_t* stk);
 
 void stack_push(struct stack_t* stk, elem_t parameter);
-elem_t stack_pop(struct stack_t* stk, elem_t* parameter);
-
-//void stack_resize_up(struct stack_t* stk);
-//void stack_resize_down(struct stack_t* stk);
-void stack_resize(struct stack_t* stk, code_of_resize rsz_code);
-
-int stack_verify(struct stack_t* stk);
-void stack_dump(struct stack_t* stk, const char* file_name, int       n_line,
-                                   const char* func_name,int code_of_err);
+void stack_pop (struct stack_t* stk, elem_t* parameter);
 
 #endif /* STACK_H */
