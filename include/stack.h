@@ -3,6 +3,8 @@
 
 typedef int elem_t;
 typedef unsigned long long canary_t;
+typedef unsigned long hash_t;
+
 
 #define CANARY_PROTECTION 1
 #define HASH_PROTECTION 1
@@ -24,6 +26,9 @@ struct stack_t
         canary_t r_canary = RIGHT_CANARY_VALUE;
     #endif
 
+    #if HASH_PROTECTION
+        hash_t hash;
+    #endif
 };
 
 void stack_ctor(struct stack_t* stk);
