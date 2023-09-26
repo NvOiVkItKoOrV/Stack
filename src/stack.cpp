@@ -60,11 +60,11 @@ if((error_code = stack_verify(stk)) != NO_ERR)                \
 }
 
 
-#define MY_ASSERT(condition)                              \
-if(!condition)                                            \
-{                                                         \
-    printf("ERROR CONDITION IN file: %s func: %s line %d",\
-                            __FILE__, __func__, __LINE__);\
+#define MY_ASSERT(condition)                                \
+if(!condition)                                              \
+{                                                           \
+    printf("ERROR CONDITION IN file: %s func: %s line %d\n",\
+                            __FILE__, __func__, __LINE__);  \
 }
 
 
@@ -126,9 +126,9 @@ static hash_comp check_hash(struct stack_t* stk)
 
     if(old_hash != new_hash)
     {
-        printf("ERROR! Hash is changed!");
-        printf("Old hash - %lu", old_hash);
-        printf("New hash - %lu", new_hash);
+        printf("ERROR! Hash is changed!\n");
+        printf("Old hash - %lu\n", old_hash);
+        printf("New hash - %lu\n", new_hash);
         error_code |= HASH_IS_CHANGED_ERR;
         return HASH_IS_CHANGED;
     }
@@ -280,6 +280,8 @@ void stack_pop(struct stack_t* stk, elem_t* parameter)
             *parameter = *((elem_t*)stk->data + stk->size);
             *((elem_t*)stk->data + stk->size) = 0;
         }
+        else
+            *((elem_t*)stk->data + stk->size) = 0;
     }
 
 
@@ -342,6 +344,9 @@ static void stack_resize(struct stack_t* stk, code_of_resize rsz_code)
     else
         printf("ERROR! CODE OF RESIZE IS SHIT!!!!!");
 
+    for(int counter = 0; counter < stk->capacity - stk->size; counter++)
+        *((elem_t*)stk->data + stk->size + counter) = 0;
+
     #if CANARY_PROTECTION == 1
         CHECK_CANARY(stk);
     #endif
@@ -394,13 +399,13 @@ static void stack_dump(const struct stack_t* stk, const char* file_name, int n_l
     printf("----------------------------------------\n");
     if((code_of_err & STACK_IS_LOST) == STACK_IS_LOST)
     {
-        printf("ERROR! Adress of stack is lost!");
+        printf("ERROR! Adress of stack is lost!\n");
         exit(EXIT_FAILURE);
     }
 
     if((code_of_err & DATA_IS_LOST) == DATA_IS_LOST)
     {
-        printf("ERROR! Data adress is lost!");
+        printf("ERROR! Data adress is lost!\n");
         exit(EXIT_FAILURE);
     }
 
@@ -455,7 +460,7 @@ static void stack_dump(const struct stack_t* stk, const char* file_name, int n_l
         if(counter < stk->size)
             printf("[%lu] =  %d\n", counter, *((elem_t*)stk->data + counter));
         else
-            printf("[%lu] =  %d (POISON)\n", counter, *((elem_t*)stk->data + counter));
+            printf("[%lu] =  %d\n", counter, *((elem_t*)stk->data + counter));
     }
 }
 #if CANARY_PROTECTION == 1
