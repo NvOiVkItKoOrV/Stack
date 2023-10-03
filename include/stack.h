@@ -1,20 +1,52 @@
 #ifndef STACK_H
 #define STACK_H
 
-typedef int elem_t;
+typedef enum
+{
+    NO_ERR = 0,
+
+    SIZE_BIGGER_CAPACITY = 1,
+
+    CAPACITY_LESS_DEFAULT_SZ = 2,
+
+    DATA_IS_LOST = 4,
+    STACK_IS_LOST = 8,
+
+    CANARY_IS_CHANGED_ERR = 16,
+
+    HASH_IS_CHANGED_ERR = 32
+
+} err_types;
+
+
+typedef enum
+{
+    RESIZE_UP,
+    RESIZE_DOWN
+
+} code_of_resize;
+
+typedef enum
+{
+    HASH_IS_EQUAL = 0,
+    HASH_IS_CHANGED = 1
+
+} hash_comp;
+
+typedef double elem_t;
 typedef unsigned long long canary_t;
 typedef unsigned long hash_t;
 
 
-#define CANARY_PROTECTION 1
-#define HASH_PROTECTION 1
+#define CANARY_PROTECTION
+#define HASH_PROTECTION
 
-const canary_t LEFT_CANARY_VALUE = 0xBADDED;
+const canary_t LEFT_CANARY_VALUE  = 0xBADDED;
 const canary_t RIGHT_CANARY_VALUE = 0xBE3BAB;
 
 struct stack_t
 {
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         canary_t l_canary = LEFT_CANARY_VALUE;
     #endif
 
@@ -22,11 +54,11 @@ struct stack_t
     long unsigned int size; // int -> some unsigned type
     long unsigned int capacity; // int -> some usigned type
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         canary_t r_canary = RIGHT_CANARY_VALUE;
     #endif
 
-    #if HASH_PROTECTION
+    #ifdef HASH_PROTECTION
         hash_t hash;
     #endif
 };

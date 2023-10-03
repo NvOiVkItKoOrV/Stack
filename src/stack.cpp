@@ -2,47 +2,14 @@
 #include <stdlib.h>
 #include "../include/stack.h"
 
-
-typedef enum
-{
-    NO_ERR = 0,
-
-    SIZE_BIGGER_CAPACITY = 1,
-
-    CAPACITY_LESS_DEFAULT_SZ = 2,
-
-    DATA_IS_LOST = 4,
-    STACK_IS_LOST = 8,
-
-    CANARY_IS_CHANGED_ERR = 16,
-
-    HASH_IS_CHANGED_ERR = 32
-
-} err_types;
-
-
-typedef enum
-{
-    RESIZE_UP,
-    RESIZE_DOWN
-
-} code_of_resize;
-
-typedef enum
-{
-    HASH_IS_EQUAL = 0,
-    HASH_IS_CHANGED = 1
-
-} hash_comp;
-
 static int error_code = NO_ERR;
 
 const int DEFAULT_STACK_CAPACITY = 10;
 
-const canary_t LEFT_CANARY_VALUE_DATA = 0xC0FFEE;
+const canary_t LEFT_CANARY_VALUE_DATA  = 0xC0FFEE;
 const canary_t RIGHT_CANARY_VALUE_DATA = 0xBABADED;
 
-const int CANARY_IS_GOOD = 0;
+const int CANARY_IS_GOOD    = 0;
 const int CANARY_IS_CHANGED = 1;
 
 
@@ -68,14 +35,6 @@ if(!condition)                                              \
 }
 
 
-#define HASH_CALC(hash, parameter)\
-{                                 \
-    hash += (hash_t)(parameter);  \
-    hash += (hash << 10);         \
-    hash ^= (hash >> 6);          \
-}
-
-
 #define CHECK_HASH(stk)                                       \
 if(check_hash(stk))                                           \
 {                                                             \
@@ -87,35 +46,53 @@ static void stack_resize(struct stack_t* stk, code_of_resize rsz_code);
 
 static int check_canary(const struct stack_t* stk);
 
-static hash_t    calc_hash (const struct stack_t* stk);
-static hash_comp check_hash(struct stack_t* stk);
+static hash_t    calc_hash     (const struct stack_t* stk);
+static hash_comp check_hash    (struct stack_t* stk);
+static void      calc_elem_hash(hash_t* hash, const void* parameter);
 
 static int  stack_verify(const struct stack_t* stk);
 static void stack_dump  (const struct stack_t* stk, const char* file_name, int n_line,
                                                     const char* func_name, int code_of_err);
 
-
+#ifdef HASH_PROTECTION
 static hash_t calc_hash (const struct stack_t* stk)
 {
+    STACK_CHECK(stk);
+
     hash_t hash = 0;
 
+    // uint64_t uint32_t uint8_t
     for(long unsigned int counter = 0; counter < stk->capacity; counter++)
     {
-        HASH_CALC(hash, *((elem_t*)stk->data + counter));
+        calc_elem_hash(&hash, ((elem_t*)stk->data + counter));
     }
 
-    HASH_CALC(hash, stk->capacity);
-    HASH_CALC(hash, stk->data);
-    HASH_CALC(hash, stk->size);
-    HASH_CALC(hash, stk);
+    calc_elem_hash(&hash, &stk->capacity);
+    calc_elem_hash(&hash, &stk->data);
+    calc_elem_hash(&hash, &stk->size);
+    calc_elem_hash(&hash, &stk);
+
+    STACK_CHECK(stk);
 
     return hash;
 }
+#endif
 
 
-#if HASH_PROTECTION == 1
+#ifdef HASH_PROTECTION
+static void calc_elem_hash(hash_t* hash, const void* parameter)
+{
+    *hash += *(hash_t*)(parameter);
+    *hash += (*hash << 10);
+    *hash ^= (*hash >> 6);
+}
+#endif
+
+#ifdef HASH_PROTECTION
 static hash_comp check_hash(struct stack_t* stk)
 {
+    STACK_CHECK(stk);
+
     hash_t old_hash = stk->hash;
 
     stk->hash = 0;
@@ -123,6 +100,8 @@ static hash_comp check_hash(struct stack_t* stk)
     hash_t new_hash = calc_hash(stk);
 
     stk->hash = new_hash;
+
+    STACK_CHECK(stk);
 
     if(old_hash != new_hash)
     {
@@ -145,22 +124,23 @@ void stack_ctor(struct stack_t* stk)
 
         stk->capacity = DEFAULT_STACK_CAPACITY;
         stk->size     = 0;
-    #if CANARY_PROTECTION == 0
-        stk->data = (char*)calloc(DEFAULT_STACK_CAPACITY * sizeof(elem_t), sizeof(char));
-    #elif CANARY_PROTECTION == 1
-        stk->data = (char*)calloc(stk->capacity*sizeof(elem_t) + 2*sizeof(canary_t), sizeof(char));
+    #ifdef CANARY_PROTECTION
+        stk->data = (char*)calloc(stk->capacity * sizeof(elem_t) + 2 * sizeof(canary_t), sizeof(char));
+        //check calloc
         *(canary_t*)stk->data = LEFT_CANARY_VALUE_DATA;
         stk->data += sizeof(canary_t);
         *(canary_t*)(stk->data + stk->capacity * sizeof(elem_t)) = RIGHT_CANARY_VALUE_DATA;
+    #elif CANARY_PROTECTION == 1
+        stk->data = (char*)calloc(DEFAULT_STACK_CAPACITY * sizeof(elem_t), sizeof(char));
     #endif
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         stk->hash = calc_hash(stk);
     #endif
 
-    #if CANARY_PROTECTION == 1
-        CHECK_CANARY(stk);
-    #endif
+    #ifdef CANARY_PROTECTION
+    CHECK_CANARY(stk);
+#endif
 
     //printf("hash - %lu", stk->hash);
     STACK_CHECK(stk);
@@ -171,25 +151,25 @@ void stack_dtor(struct stack_t* stk)
 {
     STACK_CHECK(stk);
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         CHECK_HASH(stk);
     #endif
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         CHECK_CANARY(stk);
     #endif
 
     stk->capacity = 0;
     stk->size = 0;
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         stk->hash = 0;
     #endif
 
-    #if CANARY_PROTECTION == 0
-        free(stk->data);
-    #elif CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         stk->data -= sizeof(canary_t);
+        free(stk->data);
+    #elif
         free(stk->data);
     #endif
 
@@ -201,11 +181,11 @@ void stack_push(struct stack_t* stk, elem_t parameter)
 {
     STACK_CHECK(stk);
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         CHECK_CANARY(stk);
     #endif
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         CHECK_HASH(stk);
     #endif
 
@@ -217,11 +197,11 @@ void stack_push(struct stack_t* stk, elem_t parameter)
     *((elem_t*)stk->data + stk->size) = parameter;
     stk->size++;
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         stk->hash = calc_hash(stk);
     #endif
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         CHECK_CANARY(stk);
     #endif
 
@@ -234,11 +214,11 @@ void stack_pop(struct stack_t* stk, elem_t* parameter)
 {
     STACK_CHECK(stk);
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         CHECK_CANARY(stk);
     #endif
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         CHECK_HASH(stk);
     #endif
 
@@ -250,28 +230,8 @@ void stack_pop(struct stack_t* stk, elem_t* parameter)
 
         STACK_CHECK(stk);
 
-        #if CANARY_PROTECTION == 1
+        #ifdef CANARY_PROTECTION
             CHECK_CANARY(stk);
-
-        if(stk->capacity > DEFAULT_STACK_CAPACITY && stk->size <= stk->capacity / 4)
-            stack_resize(stk, RESIZE_DOWN);
-
-        STACK_CHECK(stk);
-
-        #if CANARY_PROTECTION == 1
-            CHECK_CANARY(stk);
-        #endif
-
-
-        if(stk->capacity > DEFAULT_STACK_CAPACITY && stk->size <= stk->capacity / 4)
-            stack_resize(stk, RESIZE_DOWN);
-
-        STACK_CHECK(stk);
-
-        #if CANARY_PROTECTION == 1
-            CHECK_CANARY(stk);
-        #endif
-
         #endif
 
         --stk->size;
@@ -285,11 +245,11 @@ void stack_pop(struct stack_t* stk, elem_t* parameter)
     }
 
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         stk->hash = calc_hash(stk);
     #endif
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         CHECK_CANARY(stk);
     #endif
 
@@ -301,57 +261,57 @@ static void stack_resize(struct stack_t* stk, code_of_resize rsz_code)
 {
     STACK_CHECK(stk);
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         CHECK_CANARY(stk);
     #endif
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         CHECK_HASH(stk);
     #endif
 
     if(rsz_code == RESIZE_UP)
     {
-        #if CANARY_PROTECTION == 1
+        #ifdef CANARY_PROTECTION
             unsigned long int old_capacity = stk->capacity;
         #endif
 
         stk->capacity *= 2;
 
-        #if CANARY_PROTECTION == 0
-            stk->data = (char*)realloc(stk->data, (size_t)stk->capacity * sizeof(elem_t));
-        #elif CANARY_PROTECTION == 1
+        #ifdef CANARY_PROTECTION
             stk->data -= sizeof(canary_t);
             stk->data = (char*)realloc(stk->data, stk->capacity * sizeof(elem_t) + 2*sizeof(canary_t));
             stk->data += sizeof(canary_t);
             *(canary_t*)((elem_t*)stk->data + old_capacity) = 0;
             *(canary_t*)((elem_t*)stk->data + stk->capacity) = RIGHT_CANARY_VALUE_DATA;
+        #else
+            stk->data = (char*)realloc(stk->data, (size_t)stk->capacity * sizeof(elem_t));
         #endif
     }
     else if(rsz_code == RESIZE_DOWN)
     {
         stk->capacity /= 2;
 
-        #if CANARY_PROTECTION == 0
-            stk->data = (char*)realloc(stk->data, (size_t)stk->capacity * sizeof(elem_t));
-        #elif CANARY_PROTECTION == 1
+        #ifdef CANARY_PROTECTION
             stk->data -= sizeof(canary_t);
             stk->data = (char*)realloc(stk->data, stk->capacity * sizeof(elem_t) + 2*sizeof(canary_t));
             stk->data += sizeof(canary_t);
             *(canary_t*)((elem_t*)stk->data + stk->capacity) = RIGHT_CANARY_VALUE_DATA;
+        #else
+            stk->data = (char*)realloc(stk->data, (size_t)stk->capacity * sizeof(elem_t));
         #endif
 
     }
     else
         printf("ERROR! CODE OF RESIZE IS SHIT!!!!!");
 
-    for(int counter = 0; counter < stk->capacity - stk->size; counter++)
+    for(unsigned long int counter = 0; counter < stk->capacity - stk->size; counter++)
         *((elem_t*)stk->data + stk->size + counter) = 0;
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
         CHECK_CANARY(stk);
     #endif
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
         stk->hash = calc_hash(stk);
     #endif
 
@@ -419,14 +379,14 @@ static void stack_dump(const struct stack_t* stk, const char* file_name, int n_l
         printf("ERROR! Capacity is less, than default value!\n");
     }
 
-    #if HASH_PROTECTION == 1
+    #ifdef HASH_PROTECTION
     if((code_of_err & HASH_IS_CHANGED_ERR) == HASH_IS_CHANGED_ERR)
     {
         printf("ERROR! Hash in stack is changed!\n");
     }
     #endif
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
     if ((code_of_err & CANARY_IS_CHANGED_ERR) == CANARY_IS_CHANGED_ERR)
     {
         printf("ERROR! Canary in stack are changed!!!\n");
@@ -441,7 +401,7 @@ static void stack_dump(const struct stack_t* stk, const char* file_name, int n_l
     printf("capacity - %lu\n", stk->capacity);
     printf("adress of data - %p\n", stk->data);
 
-    #if CANARY_PROTECTION == 1
+    #ifdef CANARY_PROTECTION
     printf("left canary - %llX\n", stk->l_canary);
     printf("right canary - %llX\n", stk->r_canary);
 
@@ -458,12 +418,12 @@ static void stack_dump(const struct stack_t* stk, const char* file_name, int n_l
     for(unsigned long int counter = 0; counter < stk->capacity; counter++)
     {
         if(counter < stk->size)
-            printf("[%lu] =  %d\n", counter, *((elem_t*)stk->data + counter));
+            printf("[%lu] =  %f\n", counter, *((elem_t*)stk->data + counter));
         else
-            printf("[%lu] =  %d\n", counter, *((elem_t*)stk->data + counter));
+            printf("[%lu] =  %f\n", counter, *((elem_t*)stk->data + counter));
     }
 }
-#if CANARY_PROTECTION == 1
+#ifdef CANARY_PROTECTION
 static int check_canary(const struct stack_t* stk)
 {
     canary_t l_canary_check = stk->l_canary;
